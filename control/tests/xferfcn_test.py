@@ -449,7 +449,7 @@ class TestXferFcn(unittest.TestCase):
         np.testing.assert_array_almost_equal(sys(2.j), resp)
 
     def test_freqresp_siso(self):
-        """Evaluate the magnitude and phase of a SISO system at 
+        """Evaluate the magnitude and phase of a SISO system at
         multiple frequencies."""
 
         sys = TransferFunction([1., 3., 5], [1., 6., 2., -1])
@@ -467,7 +467,7 @@ class TestXferFcn(unittest.TestCase):
 
     @unittest.skipIf(not slycot_check(), "slycot not installed")
     def test_freqresp_mimo(self):
-        """Evaluate the magnitude and phase of a MIMO system at 
+        """Evaluate the magnitude and phase of a MIMO system at
         multiple frequencies."""
 
         num = [[[1., 2.], [0., 3.], [2., -1.]],
@@ -496,7 +496,56 @@ class TestXferFcn(unittest.TestCase):
         np.testing.assert_array_equal(omega, true_omega)
 
     # Tests for TransferFunction.pole and TransferFunction.zero.
-    
+    def test_common_den(self):
+        """ Test the helper function to compute common denomitators."""
+
+        # _common_den() computes the common denominator per input/column.
+        # The testing columns are:
+        # 0: no common poles
+        # 1: regular common poles
+        # 2: poles with multiplicity,
+        # 3: complex poles
+        # 4: complex poles below threshold
+
+        eps = np.finfo(float).eps
+        tol_imag = np.sqrt(eps*5*2*2)*0.9
+
+        numin = [[[1.], [1.], [1.], [1.], [1.]],
+                 [[1.], [1.], [1.], [1.], [1.]]]
+        denin = [[[1., 3., 2.],          # 0: poles: [-1, -2]
+                  [1., 6., 11., 6.],     # 1: poles: [-1, -2, -3]
+                  [1., 6., 11., 6.],     # 2: poles: [-1, -2, -3]
+                  [1., 6., 11., 6.],     # 3: poles: [-1, -2, -3]
+                  [1., 6., 11., 6.]],    # 4: poles: [-1, -2, -3],
+                 [[1., 12., 47., 60.],   # 0: poles: [-3, -4, -5]
+                  [1., 9., 26., 24.],    # 1: poles: [-2, -3, -4]
+                  [1., 7., 16., 12.],    # 2: poles: [-2, -2, -3]
+                  [1., 7., 17., 15.],    # 3: poles: [-2+1J, -2-1J, -3],
+                  np.poly([-2 + tol_imag * 1J, -2 - tol_imag * 1J, -3])]]
+        numref = np.array([
+                [[0.,  0.,  1., 12., 47., 60.],
+                 [0.,  0.,  0.,  1.,  4.,  0.],
+                 [0.,  0.,  0.,  1.,  2.,  0.],
+                 [0.,  0.,  0.,  1.,  4.,  5.],
+                 [0.,  0.,  0.,  1.,  2.,  0.]],
+                [[0.,  0.,  0.,  1.,  3.,  2.],
+                 [0.,  0.,  0.,  1.,  1.,  0.],
+                 [0.,  0.,  0.,  1.,  1.,  0.],
+                 [0.,  0.,  0.,  1.,  3.,  2.],
+                 [0.,  0.,  0.,  1.,  1.,  0.]]])
+        denref = np.array(
+                [[1., 15., 85., 225., 274., 120.],
+                 [1., 10., 35., 50., 24.,  0.],
+                 [1.,  8., 23., 28., 12.,  0.],
+                 [1., 10., 40., 80., 79., 30.],
+                 [1.,  8., 23., 28., 12.,  0.]])
+        sys = TransferFunction(numin, denin)
+        num, den, denorder = sys._common_den()
+        np.testing.assert_array_almost_equal(num[:2, :, :], numref)
+        np.testing.assert_array_almost_equal(num[2:, :, :],
+                                             np.zeros((3, 5, 6)))
+        np.testing.assert_array_almost_equal(den, denref)
+
     @unittest.skipIf(not slycot_check(), "slycot not installed")
     def test_pole_mimo(self):
         """Test for correct MIMO poles."""
@@ -508,13 +557,12 @@ class TestXferFcn(unittest.TestCase):
 
         np.testing.assert_array_almost_equal(p, [-2., -2., -7., -3., -2.])
 
-    @unittest.skipIf(not slycot_check(), "slycot not installed")
     def test_double_cancelling_poles_siso(self):
-        
+
         H = TransferFunction([1, 1], [1, 2, 1])
         p = H.pole()
         np.testing.assert_array_almost_equal(p, [-1, -1])
-    
+
     # Tests for TransferFunction.feedback
     def test_feedback_siso(self):
         """Test for correct SISO transfer function feedback."""
@@ -755,6 +803,28 @@ class TestXferFcn(unittest.TestCase):
         # Feedback mismatch (MIMO not implemented)
         self.assertRaises(NotImplementedError,
                           TransferFunction.feedback, sys2, sys1)
+
+    def test_latex_repr(self):
+        """ Test latex printout for TransferFunction """
+        Hc = TransferFunction([1e-5, 2e5, 3e-4],
+                              [1.2e34, 2.3e-4, 2.3e-45])
+        Hd = TransferFunction([1e-5, 2e5, 3e-4],
+                              [1.2e34, 2.3e-4, 2.3e-45],
+                              .1)
+        # TODO: make the multiplication sign configurable
+        expmul = r'\times'
+        for var, H, suffix in zip(['s', 'z'],
+                                  [Hc, Hd],
+                                  ['', r'\quad dt = 0.1']):
+            ref = (r'$$\frac{'
+                   r'1 ' + expmul + ' 10^{-5} ' + var + '^2 '
+                   r'+ 2 ' + expmul + ' 10^{5} ' + var + ' + 0.0003'
+                   r'}{'
+                   r'1.2 ' + expmul + ' 10^{34} ' + var + '^2 '
+                   r'+ 0.00023 ' + var + ' '
+                   r'+ 2.3 ' + expmul + ' 10^{-45}'
+                   r'}' + suffix + '$$')
+            self.assertEqual(H._repr_latex_(), ref)
 
 
 def suite():

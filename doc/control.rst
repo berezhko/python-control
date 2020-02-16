@@ -32,6 +32,9 @@ System interconnections
     parallel
     series
 
+See also the :ref:`iosys-module` module, which can be used to create and
+interconnect nonlinear input/output systems.
+
 Frequency domain plotting
 =========================
 
@@ -134,8 +137,12 @@ Nonlinear system support
 .. autosummary::
    :toctree: generated/
 
-   find_eqpt
-   linearize
+   ~iosys.find_eqpt
+   ~iosys.linearize
+   ~iosys.input_output_response
+   ~iosys.ss2io
+   ~iosys.tf2io
+   flatsys.point_to_point
 
 .. _utility-and-conversions:
 
